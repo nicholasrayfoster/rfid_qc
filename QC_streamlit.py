@@ -2,23 +2,32 @@ import streamlit as st
 import pandas as pd
 import csv
 from io import BytesIO
+import io
 
 # -----------------------------
-# LOGIC FUNCTION (same as GUI)
+# LOGIC FUNCTION
 # -----------------------------
 def process_files(csv_file, xlsx_file, job_name, job_date):
+    # --- READ CSV FILE ---
     csv_data = []
     try:
-        reader = csv.reader(csv_file, delimiter=';')
-        next(reader, None)
+        csv_file.seek(0)  # reset pointer for Streamlit
+        csv_text = io.TextIOWrapper(csv_file, encoding='utf-8')
+
+        reader = csv.reader(csv_text, delimiter=';')
+        next(reader, None)  # skip header
+
         for row in reader:
-            clean_rfid = row[0].replace('-', '')
-            csv_data.append(clean_rfid)
+            if row:  # avoid empty rows
+                clean_rfid = row[0].replace('-', '')
+                csv_data.append(clean_rfid)
+
     except Exception as e:
         return None, f"Error reading CSV file:\n{e}"
 
     rfid_count = len(csv_data)
 
+    # --- READ EXCEL FILE ---
     try:
         df_excel = pd.read_excel(xlsx_file)
     except Exception as e:
@@ -27,10 +36,13 @@ def process_files(csv_file, xlsx_file, job_name, job_date):
     if df_excel.shape[1] < 2:
         return None, "Excel file does not contain enough columns."
 
+    # Clean Excel RFID column (column B)
     df_excel['RFID_CLEAN'] = df_excel.iloc[:, 1].astype(str).str.replace('-', '', regex=False)
 
+    # --- FIND MATCHES ---
     df_matches = df_excel[df_excel['RFID_CLEAN'].isin(csv_data)].copy()
 
+    # --- DROP COLUMN C (index 2) AND COLUMN D (index 3) ---
     cols_to_drop = []
     if df_matches.shape[1] > 2:
         cols_to_drop.append(df_matches.columns[2])
@@ -40,6 +52,7 @@ def process_files(csv_file, xlsx_file, job_name, job_date):
     df_matches.drop(columns=cols_to_drop, inplace=True)
     df_matches.drop(columns=['RFID_CLEAN'], inplace=True)
 
+    # --- BUILD SUMMARY TEXT ---
     summary = []
     summary.append("Composite Piping Technology, LLC")
     summary.append("Production and Scanned RFID Comparison")
@@ -92,5 +105,5 @@ if st.button("Run Comparison"):
             st.download_button(
                 "Download Output Excel",
                 output.getvalue(),
-                file_name=f"CPT_{job_name.replace(' ', '_')}.xlsx"
+                file_name=f"{job_name.replace(' ', '_')}.xlsx"
             )
