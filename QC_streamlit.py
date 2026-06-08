@@ -105,5 +105,6 @@ if st.button("Run Comparison"):
             st.download_button(
                 "Download Output Excel",
                 output.getvalue(),
-                file_name=f"{job_name.replace(' ', '_')}.xlsx"
+                file_name=f"{job_name.replace(' ', '_')}_{job_date.strftime('%d-%m-%Y')}.xlsx"
+
             )
